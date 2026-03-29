@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#07090c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="UV Cut Detector">
+<link rel="manifest" href="manifest.json">
+<title>UV Cut Detector</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:#07090c;color:#b8ccd8;font-family:Arial,sans-serif;display:flex;flex-direction:column}
+
+/* Setup screen */
+#setup{flex:1;display:flex;align-items:center;justify-content:center;padding:24px}
+.setup-inner{width:100%;max-width:340px}
+.setup-inner h1{font-size:22px;font-weight:700;color:#fff;text-transform:uppercase;margin-bottom:4px}
+.setup-inner p{font-size:12px;color:#445566;font-family:monospace;margin-bottom:28px;line-height:1.6}
+.setup-inner label{font-size:11px;color:#556677;text-transform:uppercase;letter-spacing:0.1em;display:block;margin-bottom:8px;font-family:monospace}
+.setup-inner input{width:100%;background:#0c1420;border:1px solid #1a2535;color:#fff;font-family:monospace;font-size:18px;padding:12px 14px;border-radius:4px;margin-bottom:20px;outline:none;-webkit-appearance:none}
+.setup-inner input:focus{border-color:#00aacc}
+.setup-inner button{width:100%;background:#00aacc22;border:1px solid #00aacc;color:#00aacc;font-family:Arial,sans-serif;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;padding:14px;cursor:pointer;border-radius:4px}
+.err{font-size:12px;color:#cc3333;font-family:monospace;margin-top:14px;display:none;line-height:1.5}
+
+/* Main app */
+#app{flex:1;display:none;flex-direction:column;overflow:hidden}
+
+/* Header */
+.header{padding:12px 14px 8px;flex-shrink:0}
+.header h1{font-size:16px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.08em}
+.header .ip{font-size:10px;color:#334455;font-family:monospace;margin-top:1px}
+
+/* Fraction bar */
+.fbar{margin:0 14px 10px;padding:12px 14px;border-radius:4px;border-left:3px solid #334455;background:#0c1420;color:#334455;flex-shrink:0;transition:border-color 0.3s,color 0.3s}
+.faction{font-size:22px;font-weight:700;letter-spacing:0.06em}
+.fmsg{font-size:11px;margin-top:3px;font-family:monospace;opacity:0.8}
+
+/* Cards */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 14px 10px;flex-shrink:0}
+.card{background:#0c1420;border:1px solid #182030;padding:8px 10px;border-radius:4px}
+.clbl{font-size:8px;color:#334455;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:3px;font-family:monospace}
+.cval{font-size:20px;font-weight:700;color:#fff;line-height:1}
+.cunit{font-size:8px;color:#445566;margin-top:2px;font-family:monospace}
+
+/* Charts — fill remaining space */
+.charts{flex:1;display:flex;flex-direction:column;padding:0 14px;gap:6px;min-height:0;overflow:hidden}
+.cw{background:#0c1420;border:1px solid #182030;border-radius:4px;padding:8px 10px;display:flex;flex-direction:column;flex:1;min-height:0}
+.ct{font-size:8px;color:#334455;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px;font-family:monospace;flex-shrink:0}
+canvas{flex:1;width:100%;min-height:0}
+
+/* Bottom bar */
+.bar{padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;border-top:1px solid #0f1820}
+.dot{width:6px;height:6px;border-radius:50%;background:#22aa55;flex-shrink:0;animation:pu 2s infinite}
+.dot.err{background:#cc3333;animation:none}
+.dot.warn{background:#cc7722;animation:none}
+@keyframes pu{0%,100%{opacity:1}50%{opacity:0.2}}
+.stxt{font-size:10px;color:#334455;font-family:monospace;flex:1}
+.bbtns{display:flex;gap:6px}
+.bbtn{background:none;border:1px solid #182030;color:#445566;font-family:monospace;font-size:9px;padding:4px 10px;cursor:pointer;border-radius:2px;text-transform:uppercase}
+</style>
+</head>
+<body>
+
+<!-- Setup -->
+<div id="setup">
+  <div class="setup-inner">
+    <h1>UV Cut Detector</h1>
+    <p>Enter the IP address of your Pico 2 W.<br>Find it in Thonny when the Pico boots.</p>
+    <label>Pico IP Address</label>
+    <input type="text" id="ipIn" placeholder="192.168.x.x"
+           autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+           inputmode="decimal">
+    <button onclick="doConnect()">Connect</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <div class="header">
+    <h1>UV Cut Detector</h1>
+    <div class="ip" id="ipLbl"></div>
+  </div>
+
+  <div class="fbar" id="fb">
+    <div class="faction" id="fa">INITIALISING</div>
+    <div class="fmsg" id="fm">Waiting for first reading...</div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="clbl">Signal</div><div class="cval" id="adc">--</div><div class="cunit">ADC</div></div>
+    <div class="card"><div class="clbl">Temp</div><div class="cval" id="tmp">--</div><div class="cunit">deg C</div></div>
+    <div class="card"><div class="clbl">ROC</div><div class="cval" id="roc">--</div><div class="cunit">ADC/min</div></div>
+    <div class="card"><div class="clbl">Elapsed</div><div class="cval" id="ela">--</div><div class="cunit">sec</div></div>
+    <div class="card"><div class="clbl">Free RAM</div><div class="cval" id="mem">--</div><div class="cunit">bytes</div></div>
+    <div class="card"><div class="clbl">Last poll</div><div class="cval" id="age">--</div><div class="cunit">sec ago</div></div>
+  </div>
+
+  <div class="charts">
+    <div class="cw">
+      <div class="ct">Fluorescence signal (ADC 0-4095)</div>
+      <canvas id="sc"></canvas>
+    </div>
+    <div class="cw">
+      <div class="ct">Rate of change (neg=falling, pos=rising)</div>
+      <canvas id="rc"></canvas>
+    </div>
+  </div>
+
+  <div class="bar">
+    <div class="dot" id="dot"></div>
+    <span class="stxt" id="st">Connecting...</span>
+    <div class="bbtns">
+      <button class="bbtn" onclick="tog()" id="pb">Pause</button>
+      <button class="bbtn" onclick="dl()">CSV</button>
+      <button class="bbtn" onclick="changeIP()">IP</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var IP = '';
+var paused = false;
+var errCount = 0;
+var sigH = [];
+var rocH = [];
+var lastPollTime = 0;
+var pollInterval = 10000;
+var ageTimer = null;
+
+var FC = {
+  foreshots: '#cc3333',
+  heads: '#cc7722',
+  heads_transition: '#ccaa22',
+  hearts: '#22aa55',
+  tails_transition: '#2288cc',
+  tails: '#5544cc',
+  initialising: '#334455'
+};
+
+// ── Setup ──────────────────────────────────────────────────────────────────
+window.onload = function() {
+  var saved = localStorage.getItem('picoIP');
+  if (saved) {
+    document.getElementById('ipIn').value = saved;
+    IP = saved;
+    showApp();
+  }
+};
+
+function doConnect() {
+  var val = document.getElementById('ipIn').value.trim();
+  if (!val) { showErr('Please enter an IP address'); return; }
+  IP = val;
+  showErr('');
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'http://' + IP + '/ping', true);
+  xhr.timeout = 4000;
+  xhr.onload = function() {
+    if (xhr.responseText.trim() === 'OK') {
+      localStorage.setItem('picoIP', IP);
+      showApp();
+    } else {
+      showErr('Connected but unexpected response. Try anyway?');
+      localStorage.setItem('picoIP', IP);
+      showApp();
+    }
+  };
+  xhr.onerror = function() { showErr('Cannot reach ' + IP + ' - check IP and WiFi'); };
+  xhr.ontimeout = function() { showErr('Timed out reaching ' + IP); };
+  xhr.send();
+}
+
+function showErr(msg) {
+  var el = document.getElementById('err');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function showApp() {
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('ipLbl').textContent = 'http://' + IP;
+  startAgeTimer();
+  poll();
+}
+
+function changeIP() {
+  clearTimeout(ageTimer);
+  document.getElementById('setup').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('ipIn').value = IP;
+}
+
+// ── Age counter — updates every second between polls ───────────────────────
+function startAgeTimer() {
+  function tick() {
+    if (lastPollTime > 0) {
+      var age = Math.round((Date.now() - lastPollTime) / 1000);
+      document.getElementById('age').textContent = age;
+    }
+    ageTimer = setTimeout(tick, 1000);
+  }
+  tick();
+}
+
+// ── Polling ────────────────────────────────────────────────────────────────
+function poll() {
+  if (paused) { setTimeout(poll, pollInterval); return; }
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'http://' + IP + '/data', true);
+  xhr.timeout = 8000;
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      try {
+        var d = JSON.parse(xhr.responseText);
+        errCount = 0;
+        lastPollTime = Date.now();
+        updateUI(d);
+      } catch(e) {
+        handleErr('Parse error');
+      }
+    } else {
+      handleErr('HTTP ' + xhr.status);
+    }
+    setTimeout(poll, pollInterval);
+  };
+  xhr.onerror = function() { handleErr('Network error'); setTimeout(poll, pollInterval); };
+  xhr.ontimeout = function() { handleErr('Timeout'); setTimeout(poll, pollInterval); };
+  xhr.send();
+  document.getElementById('dot').className = 'dot warn';
+  document.getElementById('st').textContent = 'Polling...';
+}
+
+function handleErr(msg) {
+  errCount++;
+  document.getElementById('dot').className = 'dot err';
+  document.getElementById('st').textContent = msg + ' (' + errCount + ')';
+}
+
+// ── UI ─────────────────────────────────────────────────────────────────────
+function updateUI(d) {
+  document.getElementById('dot').className = 'dot';
+  document.getElementById('adc').textContent = d.adc;
+  document.getElementById('tmp').textContent = (d.temp != null) ? d.temp.toFixed(1) : '--';
+  var rocStr = (d.roc > 0) ? ('+' + d.roc) : String(d.roc);
+  document.getElementById('roc').textContent = rocStr;
+  document.getElementById('ela').textContent = d.elapsed;
+  document.getElementById('mem').textContent = d.free ? Math.round(d.free / 1024) + 'k' : '--';
+  document.getElementById('age').textContent = '0';
+  document.getElementById('st').textContent = new Date().toLocaleTimeString() + ' - ' + d.elapsed + 's elapsed';
+
+  var col = FC[d.fraction] || '#334455';
+  var fb = document.getElementById('fb');
+  fb.style.borderLeftColor = col;
+  fb.style.color = col;
+  document.getElementById('fa').textContent = d.label;
+  document.getElementById('fm').textContent = d.message;
+
+  sigH = [];
+  for (var i = 0; i < d.history.length; i++) { sigH.push(d.history[i].y); }
+  rocH = [];
+  for (var i = 0; i < sigH.length; i++) {
+    if (i < 3 || i >= sigH.length - 3) { rocH.push(0); continue; }
+    var a = sigH[Math.min(i + 3, sigH.length - 1)];
+    var b = sigH[Math.max(i - 3, 0)];
+    rocH.push(Math.round((a - b) / 6));
+  }
+  drawAll();
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────────
+function drawAll() {
+  drawChart('sc', sigH, '#378ADD', 0, 4095, false);
+  drawChart('rc', rocH, '#1D9E75', null, null, true);
+}
+
+function drawChart(id, data, lc, yLo, yHi, zero) {
+  var cv = document.getElementById(id);
+  var rect = cv.getBoundingClientRect();
+  var W = Math.floor(rect.width) || 300;
+  var H = Math.floor(rect.height) || 120;
+  cv.width = W;
+  cv.height = H;
+  var c = cv.getContext('2d');
+  c.fillStyle = '#080c12';
+  c.fillRect(0, 0, W, H);
+  if (!data || data.length < 2) { return; }
+  var pad = 4;
+  var pw = W - pad * 2;
+  var ph = H - pad * 2;
+  var lo = (yLo != null) ? yLo : Math.min.apply(null, data);
+  var hi = (yHi != null) ? yHi : Math.max.apply(null, data);
+  if (hi - lo < 10) { var m = (hi + lo) / 2; lo = m - 5; hi = m + 5; }
+  function px(i) { return pad + (i / (data.length - 1)) * pw; }
+  function py(v) { return pad + (1 - (v - lo) / (hi - lo)) * ph; }
+  // Grid
+  c.strokeStyle = 'rgba(255,255,255,0.04)';
+  c.lineWidth = 1;
+  for (var i = 1; i < 4; i++) {
+    var gy = pad + (i / 4) * ph;
+    c.beginPath(); c.moveTo(pad, gy); c.lineTo(W - pad, gy); c.stroke();
+  }
+  // Zero line
+  if (zero && lo < 0 && hi > 0) {
+    var zy = py(0);
+    c.strokeStyle = 'rgba(255,255,255,0.15)';
+    c.setLineDash([4, 3]);
+    c.beginPath(); c.moveTo(pad, zy); c.lineTo(W - pad, zy); c.stroke();
+    c.setLineDash([]);
+  }
+  // Fill
+  c.beginPath();
+  c.moveTo(px(0), py(zero ? 0 : lo));
+  for (var i = 0; i < data.length; i++) { c.lineTo(px(i), py(data[i])); }
+  c.lineTo(px(data.length - 1), py(zero ? 0 : lo));
+  c.closePath();
+  var g = c.createLinearGradient(0, pad, 0, H - pad);
+  g.addColorStop(0, lc + '30');
+  g.addColorStop(1, lc + '04');
+  c.fillStyle = g; c.fill();
+  // Line
+  c.beginPath();
+  for (var i = 0; i < data.length; i++) {
+    if (i === 0) { c.moveTo(px(i), py(data[i])); }
+    else { c.lineTo(px(i), py(data[i])); }
+  }
+  c.strokeStyle = lc; c.lineWidth = 1.8;
+  c.lineJoin = 'round'; c.lineCap = 'round'; c.stroke();
+  // End dot
+  c.beginPath();
+  c.arc(px(data.length - 1), py(data[data.length - 1]), 3, 0, Math.PI * 2);
+  c.fillStyle = lc; c.fill();
+  // Y labels
+  c.fillStyle = 'rgba(80,110,130,0.6)';
+  c.font = '9px monospace';
+  c.textAlign = 'right';
+  var topLbl = (yHi != null) ? String(yHi) : String(Math.round(hi));
+  var botLbl = (yLo != null) ? String(yLo) : String(Math.round(lo));
+  c.fillText(topLbl, pad + 30, pad + 10);
+  c.fillText(botLbl, pad + 30, H - pad - 2);
+  c.textAlign = 'left';
+}
+
+// ── Controls ───────────────────────────────────────────────────────────────
+function tog() {
+  paused = !paused;
+  document.getElementById('pb').textContent = paused ? 'Resume' : 'Pause';
+  if (!paused) { poll(); }
+}
+
+function dl() { window.open('http://' + IP + '/log'); }
+
+window.onresize = function() { if (sigH.length) { drawAll(); } };
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').then(function(reg) {
+      console.log('SW registered');
+    }).catch(function(err) {
+      console.log('SW failed:', err);
+    });
+  });
+}
+</script>
+</body>
+</html>
