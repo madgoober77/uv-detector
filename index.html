@@ -159,7 +159,7 @@ function doConnect() {
   showErr('');
   var xhr = new XMLHttpRequest();
   xhr.open('GET', 'http://' + IP + '/ping', true);
-  xhr.timeout = 4000;
+  xhr.timeout = 6000;
   xhr.onload = function() {
     if (xhr.responseText.trim() === 'OK') {
       localStorage.setItem('picoIP', IP);
@@ -213,7 +213,7 @@ function poll() {
   if (paused) { setTimeout(poll, pollInterval); return; }
   var xhr = new XMLHttpRequest();
   xhr.open('GET', 'http://' + IP + '/data', true);
-  xhr.timeout = 8000;
+  xhr.timeout = 12000;
   xhr.onload = function() {
     if (xhr.status === 200) {
       try {
@@ -229,8 +229,8 @@ function poll() {
     }
     setTimeout(poll, pollInterval);
   };
-  xhr.onerror = function() { handleErr('Network error'); setTimeout(poll, pollInterval); };
-  xhr.ontimeout = function() { handleErr('Timeout'); setTimeout(poll, pollInterval); };
+  xhr.onerror = function() { handleErr('Network error - check WiFi'); setTimeout(poll, pollInterval); };
+  xhr.ontimeout = function() { handleErr('Timeout - Pico busy, retrying...'); setTimeout(poll, pollInterval); };
   xhr.send();
   document.getElementById('dot').className = 'dot warn';
   document.getElementById('st').textContent = 'Polling...';
